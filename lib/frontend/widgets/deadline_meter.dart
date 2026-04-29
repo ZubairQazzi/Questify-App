@@ -26,7 +26,7 @@ class DeadlineMeter extends StatelessWidget {
       _ => QuestifyTheme.coral,
     };
     final message = totalHours < 0
-        ? 'Deadline passed'
+        ? 'Missed deadline'
         : totalHours < 24
         ? '$totalHours h left'
         : '${(totalHours / 24).ceil()} days left';

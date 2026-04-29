@@ -35,7 +35,7 @@ class GamificationService {
   static String deadlineStatus(DateTime deadline) {
     final hoursLeft = deadline.difference(DateTime.now()).inHours;
     if (hoursLeft < 0) {
-      return 'Overdue';
+      return 'Missed';
     }
     if (hoursLeft < 24) {
       return 'Critical';

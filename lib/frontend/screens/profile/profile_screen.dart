@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../backend/models/user_settings.dart';
 import '../../controllers/questify_controller.dart';
 import '../../theme/questify_theme.dart';
+import '../../widgets/questify_top_dialog.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({
@@ -244,41 +245,50 @@ class ProfileScreen extends StatelessWidget {
     QuestifyController controller,
   ) async {
     double draftValue = controller.settings.dailyGoalQuests.toDouble();
-    final selected = await showDialog<double>(
+    final selected = await showQuestifyTopDialog<double>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Daily quest goal'),
-          content: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Slider(
-                    min: 1,
-                    max: 8,
-                    divisions: 7,
-                    value: draftValue,
-                    label: draftValue.round().toString(),
-                    onChanged: (value) => setState(() => draftValue = value),
-                  ),
-                  Text('${draftValue.round()} quests per day'),
-                ],
-              );
-            },
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Daily quest goal',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                Slider(
+                  min: 1,
+                  max: 8,
+                  divisions: 7,
+                  value: draftValue,
+                  label: draftValue.round().toString(),
+                  onChanged: (value) => setState(() => draftValue = value),
+                ),
+                Text('${draftValue.round()} quests per day'),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(draftValue),
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(draftValue),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
 
     if (selected == null) {
@@ -294,41 +304,50 @@ class ProfileScreen extends StatelessWidget {
     QuestifyController controller,
   ) async {
     double draftValue = controller.settings.focusDurationMinutes.toDouble();
-    final selected = await showDialog<double>(
+    final selected = await showQuestifyTopDialog<double>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Focus timer length'),
-          content: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Slider(
-                    min: 15,
-                    max: 60,
-                    divisions: 9,
-                    value: draftValue,
-                    label: '${draftValue.round()} min',
-                    onChanged: (value) => setState(() => draftValue = value),
-                  ),
-                  Text('${draftValue.round()} minutes'),
-                ],
-              );
-            },
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Focus timer length',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                Slider(
+                  min: 15,
+                  max: 60,
+                  divisions: 9,
+                  value: draftValue,
+                  label: '${draftValue.round()} min',
+                  onChanged: (value) => setState(() => draftValue = value),
+                ),
+                Text('${draftValue.round()} minutes'),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(draftValue),
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(draftValue),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
 
     if (selected == null) {
@@ -398,13 +417,16 @@ class _SettingsPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: scheme.outline),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(title, style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 14),
-          ...children,
-        ],
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(title, style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 14),
+            ...children,
+          ],
+        ),
       ),
     );
   }

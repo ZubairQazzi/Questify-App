@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/questify_controller.dart';
@@ -13,25 +14,39 @@ class DashboardScreen extends StatelessWidget {
     required this.onOpenQuest,
     required this.onOpenHistory,
     required this.onOpenProgressMap,
+    required this.onCreateQuest,
     super.key,
   });
 
   final ValueChanged<String> onOpenQuest;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenProgressMap;
+  final VoidCallback onCreateQuest;
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<QuestifyController>();
     final user = controller.user;
     if (user == null) {
-      return const SizedBox.shrink();
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 128),
+        children: const <Widget>[
+          _EmptyPanel(
+            title: 'Dashboard is loading',
+            body:
+                'Your profile is still syncing from Firebase. This usually takes only a moment.',
+          ),
+        ],
+      );
     }
 
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final now = controller.currentTime;
+    final currentQuest = controller.currentQuest;
     final urgentQuest = controller.urgentQuest;
     final bossBattle = controller.activeBossBattles.firstOrNull;
+    final todayQuests = controller.todayQuests;
     final avatarLetter = user.name.trim().isEmpty
         ? '?'
         : user.name.trim()[0].toUpperCase();
@@ -63,22 +78,48 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                   Text('Command Center', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 2),
+                  Text(
+                    DateFormat('EEEE, d MMM').format(now),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest.withValues(alpha: 0.88),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: scheme.outline),
-              ),
-              child: Text(
-                'LV ${user.level}',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: QuestifyTheme.gold,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest.withValues(
+                      alpha: 0.88,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: scheme.outline),
+                  ),
+                  child: Text(
+                    'LV ${user.level}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: QuestifyTheme.gold,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: 164,
+                  child: FilledButton.tonalIcon(
+                    onPressed: onCreateQuest,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('NEW QUEST'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -94,7 +135,7 @@ class DashboardScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'WELCOME BACK, ${user.name.split(' ').first.toUpperCase()}',
+                'TODAY - ${DateFormat('EEE, d MMM').format(now)}',
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: QuestifyTheme.lilac,
                 ),
@@ -109,6 +150,37 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: <Widget>[
+                  StatPill(
+                    icon: Icons.today_rounded,
+                    label: 'Due today',
+                    value: '${todayQuests.length}',
+                    color: QuestifyTheme.cyan,
+                  ),
+                  StatPill(
+                    icon: Icons.pending_actions_rounded,
+                    label: 'Remaining',
+                    value: '${controller.remainingQuestCount}',
+                    color: QuestifyTheme.gold,
+                  ),
+                  StatPill(
+                    icon: Icons.check_circle_outline_rounded,
+                    label: 'Done',
+                    value: '${controller.completedQuestCount}',
+                    color: QuestifyTheme.emerald,
+                  ),
+                  StatPill(
+                    icon: Icons.gpp_bad_rounded,
+                    label: 'Missed',
+                    value: '${controller.missedQuestCount}',
+                    color: QuestifyTheme.coral,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               Row(
                 children: <Widget>[
                   Expanded(
@@ -138,32 +210,6 @@ class DashboardScreen extends StatelessWidget {
           xp: user.xp,
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            StatPill(
-              icon: Icons.check_circle_outline_rounded,
-              label: 'Done today',
-              value:
-                  '${controller.completedTodayCount}/${controller.settings.dailyGoalQuests}',
-              color: QuestifyTheme.emerald,
-            ),
-            StatPill(
-              icon: Icons.map_rounded,
-              label: 'Progress map',
-              value: 'Open',
-              color: QuestifyTheme.violetGlow,
-            ),
-            StatPill(
-              icon: Icons.history_rounded,
-              label: 'History',
-              value: 'Review',
-              color: QuestifyTheme.cyan,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
         Row(
           children: <Widget>[
             Expanded(
@@ -186,9 +232,23 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 20),
+        Text('CURRENT TASK', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 14),
+        if (currentQuest == null)
+          const _EmptyPanel(
+            title: 'No active task right now',
+            body:
+                'Once you add a quest with a future deadline, your next mission will stay pinned here.',
+          )
+        else
+          QuestCard(
+            quest: currentQuest,
+            onTap: () => onOpenQuest(currentQuest.id),
+          ),
+        const SizedBox(height: 20),
         Row(
           children: <Widget>[
-            Text('TODAY\'S QUESTS', style: theme.textTheme.titleLarge),
+            Text('DUE TODAY', style: theme.textTheme.titleLarge),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -198,10 +258,41 @@ class DashboardScreen extends StatelessWidget {
                 border: Border.all(color: scheme.outline),
               ),
               child: Text(
-                '${controller.activeQuests.length}',
+                '${todayQuests.length}',
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: QuestifyTheme.violetGlow,
                 ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (todayQuests.isEmpty)
+          _EmptyPanel(
+            title: 'No tasks due today',
+            body:
+                'Your board has no quests scheduled for the present date, so you can focus on upcoming missions.',
+          )
+        else
+          ...todayQuests
+              .map(
+                (quest) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: QuestCard(
+                    quest: quest,
+                    onTap: () => onOpenQuest(quest.id),
+                  ),
+                ),
+              ),
+        const SizedBox(height: 8),
+        Row(
+          children: <Widget>[
+            Text('ALL QUESTS', style: theme.textTheme.titleLarge),
+            const Spacer(),
+            Text(
+              '${controller.activeQuests.length} on board',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
               ),
             ),
           ],

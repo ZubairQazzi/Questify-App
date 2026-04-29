@@ -6,6 +6,7 @@ import '../../../backend/models/quest.dart';
 import '../../../backend/services/gamification_service.dart';
 import '../../controllers/questify_controller.dart';
 import '../../theme/questify_theme.dart';
+import '../../widgets/questify_feedback.dart';
 
 class AddQuestScreen extends StatefulWidget {
   const AddQuestScreen({this.existingQuest, super.key});
@@ -209,7 +210,7 @@ class _AddQuestScreenState extends State<AddQuestScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     DateFormat(
-                                      'EEE, d MMM • h:mm a',
+                                      'EEE, d MMM - h:mm a',
                                     ).format(_deadline),
                                     style: theme.textTheme.titleMedium,
                                   ),
@@ -344,7 +345,7 @@ class _AddQuestScreenState extends State<AddQuestScreen> {
                   minLines: 4,
                   maxLines: 6,
                   decoration: const InputDecoration(
-                    labelText: 'Optional notes or reflection prompt',
+                    labelText: 'Optional notes',
                     prefixIcon: Icon(Icons.notes_rounded),
                   ),
                 ),
@@ -401,8 +402,10 @@ class _AddQuestScreenState extends State<AddQuestScreen> {
       return;
     }
     if (_deadline.isBefore(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please choose a future deadline.')),
+      showQuestifyFeedback(
+        context,
+        'Please choose a future deadline.',
+        tone: QuestifyFeedbackTone.warning,
       );
       return;
     }
@@ -425,9 +428,11 @@ class _AddQuestScreenState extends State<AddQuestScreen> {
       return;
     }
     if (message != null) {
-      ScaffoldMessenger.of(
+      showQuestifyFeedback(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+        message,
+        tone: QuestifyFeedbackTone.error,
+      );
       return;
     }
     Navigator.of(context).pop(true);

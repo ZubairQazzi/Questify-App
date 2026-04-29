@@ -60,6 +60,13 @@ class QuestCard extends StatelessWidget {
                             label: quest.questType.label.toUpperCase(),
                             color: QuestifyTheme.violetGlow,
                           ),
+                          if (quest.status == QuestStatus.overdue) ...<Widget>[
+                            const SizedBox(width: 8),
+                            const _TopTag(
+                              label: 'MISSED',
+                              color: QuestifyTheme.coral,
+                            ),
+                          ],
                           if (quest.bossBattleMode) ...<Widget>[
                             const SizedBox(width: 8),
                             const _TopTag(
@@ -134,7 +141,7 @@ class QuestCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               DateFormat(
-                                'EEE, d MMM • h:mm a',
+                                'EEE, d MMM - h:mm a',
                               ).format(quest.deadline),
                               style: theme.textTheme.bodySmall,
                             ),

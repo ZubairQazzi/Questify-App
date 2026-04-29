@@ -161,28 +161,51 @@ class NotificationService {
         .toList();
 
     for (final quest in pendingQuests) {
-      final warningTime = quest.deadline.subtract(const Duration(hours: 3));
-      if (warningTime.isBefore(now)) {
-        continue;
-      }
-      final scheduled = tz.TZDateTime.from(warningTime, tz.local);
-      await _plugin.zonedSchedule(
-        id: quest.id.hashCode,
-        title: 'Quest deadline approaching',
-        body:
-            '${quest.title} is getting close. Finish the mission before the boss hits back.',
-        scheduledDate: scheduled,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'deadline_alerts',
-            'Deadline Alerts',
-            importance: Importance.max,
-            priority: Priority.high,
-          ),
-          iOS: DarwinNotificationDetails(),
+      final reminderPlans = <({Duration offset, String title, String body})>[
+        (
+          offset: const Duration(days: 1),
+          title: 'Quest due tomorrow',
+          body:
+              '"${quest.title}" is due in 24 hours. Make progress now so it does not turn into a missed quest.',
         ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
+        (
+          offset: const Duration(hours: 1),
+          title: 'Quest deadline in 1 hour',
+          body:
+              '"${quest.title}" is almost due. Finish the mission before time runs out.',
+        ),
+        (
+          offset: Duration.zero,
+          title: 'Quest deadline reached',
+          body:
+              'If "${quest.title}" is still unfinished, Questify will keep it marked as missed.',
+        ),
+      ];
+
+      for (final (index, plan) in reminderPlans.indexed) {
+        final triggerTime = quest.deadline.subtract(plan.offset);
+        if (triggerTime.isBefore(now)) {
+          continue;
+        }
+
+        final scheduled = tz.TZDateTime.from(triggerTime, tz.local);
+        await _plugin.zonedSchedule(
+          id: '${quest.id}_$index'.hashCode,
+          title: plan.title,
+          body: plan.body,
+          scheduledDate: scheduled,
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'deadline_alerts',
+              'Deadline Alerts',
+              importance: Importance.max,
+              priority: Priority.high,
+            ),
+            iOS: DarwinNotificationDetails(),
+          ),
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        );
+      }
     }
   }
 }

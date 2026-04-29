@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../controllers/questify_controller.dart';
 import '../theme/questify_theme.dart';
 import '../widgets/questify_backdrop.dart';
+import '../widgets/questify_feedback.dart';
 import 'boss/boss_battles_screen.dart';
 import 'dashboard/add_quest_screen.dart';
 import 'dashboard/dashboard_screen.dart';
@@ -20,18 +21,89 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      context.read<QuestifyController>().refreshTimeSensitiveState(
+        persistIfChanged: true,
+      );
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<QuestifyController>().refreshTimeSensitiveState(
+        persistIfChanged: true,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<QuestifyController>();
+
+    if (controller.user == null) {
+      return Scaffold(
+        body: QuestifyBackdrop(
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.92,
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Syncing your dashboard',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Questify is reconnecting your Firebase session and loading your progress.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     final pages = <Widget>[
       DashboardScreen(
         onOpenQuest: _openQuest,
         onOpenHistory: _openHistory,
         onOpenProgressMap: _openProgressMap,
+        onCreateQuest: _openAddQuest,
       ),
       BossBattlesScreen(onOpenBattle: _openBossBattle),
       RewardsScreen(onOpenProgressMap: _openProgressMap),
@@ -43,7 +115,6 @@ class _HomeShellState extends State<HomeShell> {
         },
       ),
     ];
-
     return Scaffold(
       extendBody: true,
       body: QuestifyBackdrop(
@@ -51,40 +122,52 @@ class _HomeShellState extends State<HomeShell> {
           child: Stack(
             children: <Widget>[
               Positioned.fill(
-                child: IndexedStack(index: _currentIndex, children: pages),
+                child: IndexedStack(
+                  index: _currentIndex,
+                  children: pages,
+                ),
               ),
+
               Positioned(
                 left: 18,
                 right: 18,
-                bottom: 18,
+                bottom: MediaQuery.of(context).padding.bottom + 16,
                 child: _QuestifyNavBar(
                   currentIndex: _currentIndex,
-                  onSelected: (index) => setState(() => _currentIndex = index),
+                  onSelected: (index) {
+                    setState(() => _currentIndex = index);
+                  },
                 ),
               ),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAddQuest,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('NEW QUEST'),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _openAddQuest() async {
     final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(builder: (_) => const AddQuestScreen()),
+      MaterialPageRoute<bool>(
+        builder: (_) => const AddQuestScreen(),
+      ),
     );
+
     if (!mounted || created != true) {
       return;
     }
-    ScaffoldMessenger.of(
+
+    showQuestifyFeedback(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Quest saved successfully.')));
+      'Quest saved successfully.',
+      tone: QuestifyFeedbackTone.success,
+    );
   }
 
   Future<void> _openQuest(String questId) async {
@@ -105,19 +188,26 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> _openProgressMap() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const ProgressMapScreen()),
+      MaterialPageRoute<void>(
+        builder: (_) => const ProgressMapScreen(),
+      ),
     );
   }
 
   Future<void> _openHistory() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const HistoryScreen()),
+      MaterialPageRoute<void>(
+        builder: (_) => const HistoryScreen(),
+      ),
     );
   }
 }
 
 class _QuestifyNavBar extends StatelessWidget {
-  const _QuestifyNavBar({required this.currentIndex, required this.onSelected});
+  const _QuestifyNavBar({
+    required this.currentIndex,
+    required this.onSelected,
+  });
 
   final int currentIndex;
   final ValueChanged<int> onSelected;
@@ -131,7 +221,10 @@ class _QuestifyNavBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: scheme.outline, width: 1.2),
+        border: Border.all(
+          color: scheme.outline,
+          width: 1.2,
+        ),
       ),
       child: Row(
         children: <Widget>[
@@ -189,7 +282,7 @@ class _NavItem extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
           decoration: BoxDecoration(
             color: selected
                 ? QuestifyTheme.violet.withValues(alpha: 0.18)
@@ -210,12 +303,18 @@ class _NavItem extends StatelessWidget {
                     : scheme.onSurfaceVariant,
               ),
               const SizedBox(height: 6),
-              Text(
-                label.toUpperCase(),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: selected
-                      ? QuestifyTheme.violetGlow
-                      : scheme.onSurfaceVariant,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: selected
+                        ? QuestifyTheme.violetGlow
+                        : scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],

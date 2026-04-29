@@ -12,7 +12,7 @@ class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<QuestifyController>();
-    final history = controller.completedQuests;
+    final history = controller.historyQuests;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
@@ -31,7 +31,9 @@ class HistoryScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(color: scheme.outline),
                   ),
-                  child: const Text('Completed quests will appear here.'),
+                  child: const Text(
+                    'Completed and missed quests will appear here.',
+                  ),
                 ),
               ),
             )
@@ -41,6 +43,10 @@ class HistoryScreen extends StatelessWidget {
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final quest = history[index];
+                final completed = quest.status == QuestStatus.completed;
+                final accent = completed
+                    ? QuestifyTheme.emerald
+                    : QuestifyTheme.coral;
                 return Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -67,30 +73,38 @@ class HistoryScreen extends StatelessWidget {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: QuestifyTheme.emerald.withValues(
-                                alpha: 0.14,
-                              ),
+                              color: accent.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Text(
-                              'DONE',
+                              completed ? 'DONE' : 'MISSED',
                               style: theme.textTheme.labelMedium?.copyWith(
-                                color: QuestifyTheme.emerald,
+                                color: accent,
                               ),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text('${quest.subject} • ${quest.questType.label}'),
+                      Text('${quest.subject} - ${quest.questType.label}'),
                       const SizedBox(height: 10),
                       Text(
-                        'Completed on ${DateFormat('d MMM, h:mm a').format(quest.completedAt ?? quest.createdAt)}',
+                        completed
+                            ? 'Completed on ${DateFormat('d MMM, h:mm a').format(quest.completedAt ?? quest.createdAt)}'
+                            : 'Missed on ${DateFormat('d MMM, h:mm a').format(quest.deadline)}',
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        '+${quest.xpReward} XP • +${quest.coinReward} coins',
-                      ),
+                      if (completed)
+                        Text(
+                          '+${quest.xpReward} XP - +${quest.coinReward} coins',
+                        )
+                      else
+                        Text(
+                          'Deadline expired before this quest was finished.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: QuestifyTheme.coral,
+                          ),
+                        ),
                       if (quest.reflection != null) ...<Widget>[
                         const SizedBox(height: 10),
                         Container(

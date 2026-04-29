@@ -6,6 +6,7 @@ import '../../../backend/models/boss_battle.dart';
 import '../../controllers/questify_controller.dart';
 import '../../theme/questify_theme.dart';
 import '../../widgets/boss_health_bar.dart';
+import '../../widgets/questify_feedback.dart';
 
 class BossBattlesScreen extends StatelessWidget {
   const BossBattlesScreen({required this.onOpenBattle, super.key});
@@ -17,6 +18,9 @@ class BossBattlesScreen extends StatelessWidget {
     final controller = context.watch<QuestifyController>();
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final defeatedBattles = controller.bossBattles
+        .where((battle) => battle.status == BossBattleStatus.defeated)
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 128),
@@ -70,6 +74,28 @@ class BossBattlesScreen extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: <Widget>[
+            _SummaryChip(
+              label: 'Active',
+              value: '${controller.activeBossBattles.length}',
+              accent: QuestifyTheme.gold,
+            ),
+            _SummaryChip(
+              label: 'Missed',
+              value: '${controller.missedBossBattles.length}',
+              accent: QuestifyTheme.coral,
+            ),
+            _SummaryChip(
+              label: 'Defeated',
+              value: '${defeatedBattles.length}',
+              accent: QuestifyTheme.emerald,
+            ),
+          ],
+        ),
         const SizedBox(height: 18),
         if (controller.bossBattles.isEmpty)
           _EmptyBossPanel(theme: theme, scheme: scheme)
@@ -116,6 +142,8 @@ class BossBattlesScreen extends StatelessWidget {
                             child: Text(
                               battle.status == BossBattleStatus.defeated
                                   ? 'All missions cleared. Boss defeated.'
+                                  : battle.status == BossBattleStatus.overdue
+                                  ? 'Deadline passed. This boss battle is marked missed.'
                                   : '${battle.completedMissions}/${battle.totalMissions} missions cleared',
                               style: theme.textTheme.bodyMedium,
                             ),
@@ -179,6 +207,8 @@ class BossBattleDetailScreen extends StatelessWidget {
                   Text(
                     battle.status == BossBattleStatus.defeated
                         ? 'Boss defeated'
+                        : battle.status == BossBattleStatus.overdue
+                        ? 'Boss battle missed'
                         : 'The boss still has work left',
                     style: theme.textTheme.displaySmall,
                   ),
@@ -192,6 +222,8 @@ class BossBattleDetailScreen extends StatelessWidget {
                   Text(
                     battle.status == BossBattleStatus.defeated
                         ? 'All ${battle.totalMissions} missions are complete.'
+                        : battle.status == BossBattleStatus.overdue
+                        ? 'The deadline passed before every mission was cleared.'
                         : '${battle.completedMissions}/${battle.totalMissions} missions cleared so far.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
@@ -199,7 +231,7 @@ class BossBattleDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Deadline: ${DateFormat('EEE, d MMM • h:mm a').format(battle.deadline)}',
+                    'Deadline: ${DateFormat('EEE, d MMM - h:mm a').format(battle.deadline)}',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -214,6 +246,7 @@ class BossBattleDetailScreen extends StatelessWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(22),
                   onTap: battle.status == BossBattleStatus.defeated
+                          || battle.status == BossBattleStatus.overdue
                       ? null
                       : () async {
                           final message = await controller.toggleBossMission(
@@ -224,9 +257,13 @@ class BossBattleDetailScreen extends StatelessWidget {
                           if (!context.mounted || message == null) {
                             return;
                           }
-                          ScaffoldMessenger.of(
+                          showQuestifyFeedback(
                             context,
-                          ).showSnackBar(SnackBar(content: Text(message)));
+                            message,
+                            tone: message.contains('missed')
+                                ? QuestifyFeedbackTone.warning
+                                : QuestifyFeedbackTone.success,
+                          );
                         },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -251,6 +288,7 @@ class BossBattleDetailScreen extends StatelessWidget {
                         Checkbox(
                           value: mission.isCompleted,
                           onChanged: battle.status == BossBattleStatus.defeated
+                                  || battle.status == BossBattleStatus.overdue
                               ? null
                               : (_) async {
                                   final message = await controller
@@ -262,8 +300,12 @@ class BossBattleDetailScreen extends StatelessWidget {
                                   if (!context.mounted || message == null) {
                                     return;
                                   }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
+                                  showQuestifyFeedback(
+                                    context,
+                                    message,
+                                    tone: message.contains('missed')
+                                        ? QuestifyFeedbackTone.warning
+                                        : QuestifyFeedbackTone.success,
                                   );
                                 },
                         ),
@@ -313,6 +355,48 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         status.label.toUpperCase(),
         style: Theme.of(context).textTheme.labelMedium?.copyWith(color: accent),
+      ),
+    );
+  }
+}
+
+class _SummaryChip extends StatelessWidget {
+  const _SummaryChip({
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+
+  final String label;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: accent,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label.toUpperCase(),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: accent,
+            ),
+          ),
+        ],
       ),
     );
   }

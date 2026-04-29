@@ -26,14 +26,23 @@ extension QuestStatusX on QuestStatus {
     QuestStatus.pending => 'Pending',
     QuestStatus.inProgress => 'In Progress',
     QuestStatus.completed => 'Completed',
-    QuestStatus.overdue => 'Overdue',
+    QuestStatus.overdue => 'Missed',
   };
 
   static QuestStatus fromLabel(String? value) {
-    return QuestStatus.values.firstWhere(
-      (status) => status.label.toLowerCase() == value?.toLowerCase(),
-      orElse: () => QuestStatus.pending,
-    );
+    switch (value?.toLowerCase()) {
+      case 'pending':
+        return QuestStatus.pending;
+      case 'in progress':
+        return QuestStatus.inProgress;
+      case 'completed':
+        return QuestStatus.completed;
+      case 'overdue':
+      case 'missed':
+        return QuestStatus.overdue;
+      default:
+        return QuestStatus.pending;
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import '../../../backend/models/user_settings.dart';
 import '../../controllers/questify_controller.dart';
 import '../../theme/questify_theme.dart';
 import '../../widgets/questify_backdrop.dart';
+import '../../widgets/questify_feedback.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -372,9 +373,11 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
+    showQuestifyFeedback(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      message,
+      tone: QuestifyFeedbackTone.error,
+    );
   }
 }
 

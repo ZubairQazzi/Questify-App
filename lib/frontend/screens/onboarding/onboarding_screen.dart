@@ -62,17 +62,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       body: QuestifyBackdrop(
         child: SafeArea(
           child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(18),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: scheme.surfaceContainerHighest.withValues(
                       alpha: 0.92,
@@ -92,106 +93,143 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             ),
                           ),
                           const Spacer(),
-                          TextButton(
-                            onPressed: _finish,
-                            child: const Text('SKIP'),
+                          SizedBox(
+                            width: 96,
+                            child: FilledButton.tonal(
+                              onPressed: _finish,
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 10,
+                                ),
+                              ),
+                              child: const FittedBox(child: Text('SKIP')),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
+
+                      const SizedBox(height: 14),
+
                       SizedBox(
-                        height: 520,
+                        height: screenHeight < 760 ? 430 : 520,
                         child: PageView.builder(
                           controller: _pageController,
                           itemCount: _items.length,
-                          onPageChanged: (value) =>
-                              setState(() => _pageIndex = value),
+                          onPageChanged: (value) {
+                            setState(() => _pageIndex = value);
+                          },
                           itemBuilder: (context, index) {
                             final item = _items[index];
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(24),
-                                  decoration: BoxDecoration(
-                                    color: scheme.surface.withValues(
-                                      alpha: 0.64,
+
+                            return SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(22),
+                                    decoration: BoxDecoration(
+                                      color: scheme.surface.withValues(
+                                        alpha: 0.64,
+                                      ),
+                                      borderRadius: BorderRadius.circular(26),
+                                      border: Border.all(
+                                        color: scheme.outline,
+                                      ),
                                     ),
-                                    borderRadius: BorderRadius.circular(26),
-                                    border: Border.all(color: scheme.outline),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Container(
-                                        width: 72,
-                                        height: 72,
-                                        decoration: BoxDecoration(
-                                          color: item.accent.withValues(
-                                            alpha: 0.16,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            22,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          item.icon,
-                                          size: 36,
-                                          color: item.accent,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 24),
-                                      Text(
-                                        item.title,
-                                        style: theme.textTheme.displaySmall,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        item.description,
-                                        style: theme.textTheme.bodyLarge
-                                            ?.copyWith(
-                                              color: scheme.onSurfaceVariant,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                Text(
-                                  'WHY IT HELPS',
-                                  style: theme.textTheme.labelMedium,
-                                ),
-                                const SizedBox(height: 12),
-                                ...item.bullets.map(
-                                  (bullet) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Row(
+                                    child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: <Widget>[
                                         Container(
-                                          width: 10,
-                                          height: 10,
-                                          margin: const EdgeInsets.only(top: 6),
+                                          width: 66,
+                                          height: 66,
                                           decoration: BoxDecoration(
+                                            color: item.accent.withValues(
+                                              alpha: 0.16,
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(22),
+                                          ),
+                                          child: Icon(
+                                            item.icon,
+                                            size: 34,
                                             color: item.accent,
-                                            shape: BoxShape.circle,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(child: Text(bullet)),
+
+                                        const SizedBox(height: 20),
+
+                                        Text(
+                                          item.title,
+                                          style: theme.textTheme.displaySmall
+                                              ?.copyWith(
+                                            fontSize:
+                                                screenHeight < 760 ? 28 : null,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 10),
+
+                                        Text(
+                                          item.description,
+                                          style: theme.textTheme.bodyLarge
+                                              ?.copyWith(
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
-                                ),
-                              ],
+
+                                  const SizedBox(height: 16),
+
+                                  Text(
+                                    'WHY IT HELPS',
+                                    style: theme.textTheme.labelMedium,
+                                  ),
+
+                                  const SizedBox(height: 12),
+
+                                  ...item.bullets.map(
+                                    (bullet) => Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 12),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            margin:
+                                                const EdgeInsets.only(top: 6),
+                                            decoration: BoxDecoration(
+                                              color: item.accent,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              bullet,
+                                              style: theme.textTheme.bodyMedium,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             );
                           },
                         ),
                       ),
-                      const SizedBox(height: 10),
+
+                      const SizedBox(height: 14),
+
                       Row(
                         children: <Widget>[
                           ...List<Widget>.generate(
@@ -209,23 +247,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               ),
                             ),
                           ),
+
                           const Spacer(),
-                          Expanded(
+
+                          SizedBox(
+                            width: 170,
                             child: FilledButton(
                               onPressed: () {
                                 if (_pageIndex == _items.length - 1) {
                                   _finish();
                                   return;
                                 }
+
                                 _pageController.nextPage(
                                   duration: const Duration(milliseconds: 260),
                                   curve: Curves.easeOutCubic,
                                 );
                               },
-                              child: Text(
-                                _pageIndex == _items.length - 1
-                                    ? 'START QUESTING'
-                                    : 'NEXT',
+                              child: FittedBox(
+                                child: Text(
+                                  _pageIndex == _items.length - 1
+                                      ? 'START QUESTING'
+                                      : 'NEXT',
+                                ),
                               ),
                             ),
                           ),

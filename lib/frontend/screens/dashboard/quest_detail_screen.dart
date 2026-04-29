@@ -7,6 +7,8 @@ import '../../controllers/questify_controller.dart';
 import '../../theme/questify_theme.dart';
 import '../../widgets/boss_health_bar.dart';
 import '../../widgets/deadline_meter.dart';
+import '../../widgets/questify_feedback.dart';
+import '../../widgets/questify_top_dialog.dart';
 import 'add_quest_screen.dart';
 
 class QuestDetailScreen extends StatelessWidget {
@@ -100,6 +102,8 @@ class QuestDetailScreen extends StatelessWidget {
                   Text(
                     quest.note?.isNotEmpty == true
                         ? quest.note!
+                        : quest.status == QuestStatus.overdue
+                        ? 'This quest missed its deadline. Review the mission steps and plan the next attempt.'
                         : 'A focused mission with visible rewards and a clear finish line.',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: scheme.onSurfaceVariant,
@@ -214,7 +218,8 @@ class QuestDetailScreen extends StatelessWidget {
                     children: <Widget>[
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: quest.isCompleted
+                          onPressed: quest.isCompleted ||
+                                  quest.status == QuestStatus.overdue
                               ? null
                               : () => controller.startFocusTimer(quest.id),
                           icon: const Icon(Icons.play_arrow_rounded),
@@ -278,6 +283,8 @@ class QuestDetailScreen extends StatelessWidget {
                     Text(
                       quest.isCompleted
                           ? 'All mission steps are complete.'
+                          : quest.status == QuestStatus.overdue
+                          ? 'Deadline passed. This quest is missed, so unchecked steps no longer count as a win.'
                           : 'Tap a mission row to mark it done.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: scheme.onSurfaceVariant,
@@ -290,8 +297,10 @@ class QuestDetailScreen extends StatelessWidget {
                         child: _MissionTile(
                           title: step.title,
                           completed: step.isCompleted,
-                          disabled: quest.isCompleted,
+                          disabled: quest.isCompleted ||
+                              quest.status == QuestStatus.overdue,
                           onTap: quest.isCompleted
+                                  || quest.status == QuestStatus.overdue
                               ? null
                               : () async {
                                   final message = await controller
@@ -303,8 +312,12 @@ class QuestDetailScreen extends StatelessWidget {
                                   if (!context.mounted || message == null) {
                                     return;
                                   }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
+                                  showQuestifyFeedback(
+                                    context,
+                                    message,
+                                    tone: message.contains('missed')
+                                        ? QuestifyFeedbackTone.warning
+                                        : QuestifyFeedbackTone.success,
                                   );
                                 },
                         ),
@@ -316,13 +329,16 @@ class QuestDetailScreen extends StatelessWidget {
             ],
             const SizedBox(height: 20),
             FilledButton.icon(
-              onPressed: quest.isCompleted
+              onPressed: quest.isCompleted ||
+                      quest.status == QuestStatus.overdue
                   ? null
                   : () => _completeQuest(context, controller, quest),
               icon: const Icon(Icons.emoji_events_rounded),
               label: Text(
                 quest.isCompleted
                     ? 'QUEST ALREADY COMPLETE'
+                    : quest.status == QuestStatus.overdue
+                    ? 'QUEST MARKED MISSED'
                     : 'COMPLETE QUEST & CLAIM REWARDS',
               ),
             ),
@@ -349,53 +365,28 @@ class QuestDetailScreen extends StatelessWidget {
     QuestifyController controller,
     Quest quest,
   ) async {
-    final reflection = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'How did the quest feel?',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: <String>['Easy', 'Okay', 'Difficult'].map((option) {
-                    return ActionChip(
-                      label: Text(option),
-                      onPressed: () => Navigator.of(context).pop(option),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (reflection == null || !context.mounted) {
-      return;
-    }
-
     final message = await controller.completeQuest(
       questId: quest.id,
-      reflection: reflection,
+      reflection: _defaultReflectionFor(quest),
     );
     if (!context.mounted || message == null) {
       return;
     }
-    ScaffoldMessenger.of(
+    showQuestifyFeedback(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      message,
+      tone: message.contains('missed')
+          ? QuestifyFeedbackTone.warning
+          : QuestifyFeedbackTone.success,
+    );
+  }
+
+  String _defaultReflectionFor(Quest quest) {
+    return switch (quest.difficulty) {
+      QuestDifficulty.easy => 'Completed smoothly',
+      QuestDifficulty.medium => 'Completed with steady focus',
+      QuestDifficulty.hard => 'Completed after a tough push',
+    };
   }
 
   Future<bool> _confirmDelete(
@@ -404,33 +395,50 @@ class QuestDetailScreen extends StatelessWidget {
     Quest quest,
   ) async {
     final shouldDelete =
-        await showDialog<bool>(
+        await showQuestifyTopDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete quest?'),
-            content: Text('Remove "${quest.title}" from your quest board?'),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Delete'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Delete quest?',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                Text('Remove "${quest.title}" from your quest board?'),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ) ??
         false;
-
     if (!shouldDelete) {
       return false;
     }
     final message = await controller.deleteQuest(quest.id);
     if (context.mounted && message != null) {
-      ScaffoldMessenger.of(
+      showQuestifyFeedback(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+        message,
+        tone: QuestifyFeedbackTone.error,
+      );
     }
     return message == null;
   }

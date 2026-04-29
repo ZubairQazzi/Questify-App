@@ -6,14 +6,21 @@ extension BossBattleStatusX on BossBattleStatus {
   String get label => switch (this) {
     BossBattleStatus.active => 'Active',
     BossBattleStatus.defeated => 'Defeated',
-    BossBattleStatus.overdue => 'Overdue',
+    BossBattleStatus.overdue => 'Missed',
   };
 
   static BossBattleStatus fromLabel(String? value) {
-    return BossBattleStatus.values.firstWhere(
-      (status) => status.label.toLowerCase() == value?.toLowerCase(),
-      orElse: () => BossBattleStatus.active,
-    );
+    switch (value?.toLowerCase()) {
+      case 'active':
+        return BossBattleStatus.active;
+      case 'defeated':
+        return BossBattleStatus.defeated;
+      case 'overdue':
+      case 'missed':
+        return BossBattleStatus.overdue;
+      default:
+        return BossBattleStatus.active;
+    }
   }
 }
 
