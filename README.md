@@ -1,20 +1,24 @@
 # Questify
 
-Questify is a Firebase-powered Flutter productivity app that helps students fight procrastination through quests, boss battles, focus sessions, streaks, rewards, and progress tracking.
+Questify is a Flutter productivity game that helps users fight procrastination by turning study tasks into quests, deadlines into boss battles, and daily consistency into visible rewards.
 
-## Main features
+## What the app includes
 
-- Firebase Authentication with email/password login and registration
-- Cloud Firestore sync for quests, boss battles, rewards, profile progress, and settings
-- Quest CRUD with mission steps, progress states, and validation
-- XP, levels, coins, streaks, reward badges, and boss battle health tracking
-- Focus timer, progress map, history, notifications, and profile/settings
-- Responsive Flutter UI with light and dark mode
-- Android APK build and Firebase Hosting web deployment support
+- Firebase email/password authentication
+- Forgot-password flow with reset email support
+- Show/hide password toggle on login and register
+- Quest creation, editing, deletion, and completion
+- Mission steps for breaking large tasks into smaller actions
+- Boss battles linked to major quests
+- XP, levels, coins, streaks, and badges
+- Focus timer with quest progress tracking
+- History, progress map, rewards, and profile/settings
+- Light mode by default, with optional dark mode toggle
 
 ## Tech stack
 
 - Flutter
+- Dart
 - Firebase Authentication
 - Cloud Firestore
 - Provider
@@ -24,6 +28,8 @@ Questify is a Firebase-powered Flutter productivity app that helps students figh
 ## Project structure
 
 ```text
+android/
+ios/
 lib/
   app/
   backend/
@@ -37,19 +43,28 @@ lib/
     widgets/
   firebase_options.dart
   main.dart
+test/
+web/
+apk/
 ```
 
-## Run locally
+## Run the project
 
 ```bash
 flutter pub get
 flutter run
 ```
 
+For web:
+
+```bash
+flutter run -d chrome
+```
+
 ## Build APK
 
 ```bash
-flutter build apk
+flutter build apk --release
 ```
 
 APK output:
@@ -58,16 +73,24 @@ APK output:
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
+Shareable APK stored in the repo:
+
+```text
+apk/Questify-v1.0.0.apk
+```
+
 ## Firebase setup
 
-This project is already wired to Firebase. If you want to connect it to a different Firebase project:
+This repository is already connected to Firebase for the current project setup.
+
+If you want to connect it to a different Firebase project:
 
 1. Create a Firebase project.
 2. Enable Email/Password in Authentication.
 3. Create a Firestore database.
 4. Run `flutterfire configure`.
 5. Replace `lib/firebase_options.dart`.
-6. Add platform config files such as `android/app/google-services.json` if needed.
+6. Replace `android/app/google-services.json` if needed.
 
 ## Firestore structure
 
@@ -78,13 +101,13 @@ users/{userId}
   rewards/{rewardId}
 ```
 
-## Web deployment
+## Live web app
 
-```bash
-npx firebase-tools deploy --only hosting --project deadline-defender-a272c
-```
+- [https://deadline-defender-a272c.web.app](https://deadline-defender-a272c.web.app)
+- [https://deadline-defender-a272c.firebaseapp.com](https://deadline-defender-a272c.firebaseapp.com)
 
-Live URL:
+## Download and use
 
-- `https://deadline-defender-a272c.web.app`
-- `https://deadline-defender-a272c.firebaseapp.com`
+- If you want to use the app in a browser, open the live web link above.
+- If you want the Android version, download `apk/Questify-v1.0.0.apk`.
+- If you want to edit or rebuild the project, download the full repository and run Flutter locally.

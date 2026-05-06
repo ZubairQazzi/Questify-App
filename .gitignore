@@ -29,12 +29,23 @@ migrate_working_dir/
 .dart_tool/
 .flutter-plugins-dependencies
 .firebase/
+.metadata
 .pub-cache/
 .pub/
 /build/
 /coverage/
 *.err
 *.out
+/android/.gradle/
+/android/.kotlin/
+/ios/Flutter/ephemeral/
+/useless files/
+/build_questify_apk.bat
+/deploy_web_hosting.bat
+/flutter.bat
+/run_questify.bat
+/serve_web.js
+/WEB_LINK_SETUP.md
 
 # Symbolication related
 app.*.symbols
