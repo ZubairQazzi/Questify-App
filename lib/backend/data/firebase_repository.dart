@@ -105,6 +105,16 @@ class FirebaseRepository implements QuestifyRepository {
   }
 
   @override
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    await _ensureInitialized();
+    try {
+      await _auth!.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (error) {
+      throw BackendException(_friendlyAuthError(error));
+    }
+  }
+
+  @override
   Future<void> persistSnapshot(AppSnapshot snapshot) async {
     await _ensureInitialized();
 
@@ -172,10 +182,20 @@ class FirebaseRepository implements QuestifyRepository {
     required String fallbackEmail,
   }) async {
     final userRef = _firestore!.collection('users').doc(userId);
-    final userDoc = await userRef.get();
-    final questDocs = await userRef.collection('quests').get();
-    final bossDocs = await userRef.collection('bossBattles').get();
-    final rewardDocs = await userRef.collection('rewards').get();
+    final futures = await Future.wait([
+      userRef.get(),
+      userRef.collection('quests').get(),
+      userRef.collection('bossBattles').get(),
+      userRef.collection('rewards').get(),
+    ]);
+
+    final userDoc = futures[0] as DocumentSnapshot<Map<String, dynamic>>;
+    final questDocs =
+        futures[1] as QuerySnapshot<Map<String, dynamic>>;
+    final bossDocs =
+        futures[2] as QuerySnapshot<Map<String, dynamic>>;
+    final rewardDocs =
+        futures[3] as QuerySnapshot<Map<String, dynamic>>;
 
     if (!userDoc.exists) {
       final initialUser = AppUser.initial(
@@ -276,6 +296,10 @@ class FirebaseRepository implements QuestifyRepository {
         return 'That email is already registered.';
       case 'weak-password':
         return 'Use a stronger password with at least 6 characters.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait a moment and try again.';
       default:
         return error.message ?? 'Firebase authentication failed.';
     }

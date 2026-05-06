@@ -250,12 +250,8 @@ class QuestifyController extends ChangeNotifier {
       );
 
       _applySnapshot(snapshot);
-      await refreshTimeSensitiveState(persistIfChanged: true);
-
-      await _notificationService.syncReminders(
-        settings: _settings,
-        quests: _quests,
-      );
+      notifyListeners();
+      unawaited(_runPostAuthenticationSync());
 
       return null;
     } on BackendException catch (error) {
@@ -282,13 +278,24 @@ class QuestifyController extends ChangeNotifier {
       );
 
       _applySnapshot(snapshot);
-      await refreshTimeSensitiveState(persistIfChanged: true);
+      notifyListeners();
+      unawaited(_runPostAuthenticationSync());
 
-      await _notificationService.syncReminders(
-        settings: _settings,
-        quests: _quests,
-      );
+      return null;
+    } on BackendException catch (error) {
+      return error.message;
+    } finally {
+      _isAuthenticating = false;
+      notifyListeners();
+    }
+  }
 
+  Future<String?> sendPasswordResetEmail(String email) async {
+    _isAuthenticating = true;
+    notifyListeners();
+
+    try {
+      await _firebaseRepository.sendPasswordResetEmail(email: email);
       return null;
     } on BackendException catch (error) {
       return error.message;
@@ -970,6 +977,22 @@ class QuestifyController extends ChangeNotifier {
     await _notificationService.showFocusComplete(quest.title);
     resetFocusTimer();
     await _persistAll(rescheduleNotifications: false);
+  }
+
+  Future<void> _runPostAuthenticationSync() async {
+    try {
+      await refreshTimeSensitiveState(persistIfChanged: true);
+      await _notificationService.syncReminders(
+        settings: _settings,
+        quests: _quests,
+      );
+    } on BackendException catch (error, stackTrace) {
+      debugPrint('Questify post-login sync failed: ${error.message}');
+      debugPrintStack(stackTrace: stackTrace);
+    } catch (error, stackTrace) {
+      debugPrint('Questify post-login sync failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   List<MissionStep> _mergeMissionProgress(

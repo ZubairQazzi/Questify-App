@@ -22,6 +22,8 @@ abstract class QuestifyRepository {
     required String password,
   });
 
+  Future<void> sendPasswordResetEmail({required String email});
+
   Future<void> persistSnapshot(AppSnapshot snapshot);
 
   Future<void> signOut();

@@ -18,7 +18,7 @@ extension ThemePreferenceX on ThemePreference {
   static ThemePreference fromLabel(String? value) {
     return ThemePreference.values.firstWhere(
       (preference) => preference.label.toLowerCase() == value?.toLowerCase(),
-      orElse: () => ThemePreference.dark,
+      orElse: () => ThemePreference.light,
     );
   }
 }
@@ -96,7 +96,7 @@ class UserSettings {
 
   factory UserSettings.defaults() {
     return const UserSettings(
-      themePreference: ThemePreference.dark,
+      themePreference: ThemePreference.light,
       notificationsEnabled: true,
       reminderHour: 19,
       reminderMinute: 0,
