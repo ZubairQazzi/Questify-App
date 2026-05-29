@@ -1,113 +1,101 @@
-# Questify
+# Questify App
 
-Questify is a Flutter productivity game that helps users fight procrastination by turning study tasks into quests, deadlines into boss battles, and daily consistency into visible rewards.
+Questify is a Firebase-powered Flutter productivity app that helps students beat procrastination with quests, boss battles, focus progress, XP, streaks, rewards, and profile tracking.
 
-## What the app includes
+## Live Web App
 
-- Firebase email/password authentication
-- Forgot-password flow with reset email support
-- Show/hide password toggle on login and register
-- Quest creation, editing, deletion, and completion
-- Mission steps for breaking large tasks into smaller actions
-- Boss battles linked to major quests
-- XP, levels, coins, streaks, and badges
-- Focus timer with quest progress tracking
-- History, progress map, rewards, and profile/settings
-- Light mode by default, with optional dark mode toggle
+- https://deadline-defender-a272c.web.app
+- https://deadline-defender-a272c.firebaseapp.com
 
-## Tech stack
+## Latest Build
 
-- Flutter
-- Dart
-- Firebase Authentication
-- Cloud Firestore
-- Provider
-- Shared Preferences
-- Flutter Local Notifications
+- Android APK: `build/app-release.apk`
+- Web build archive: `build/web-release.zip`
 
-## Project structure
+## Project Structure
 
 ```text
-android/
-ios/
-lib/
-  app/
-  backend/
-    data/
-    models/
-    services/
-  frontend/
-    controllers/
-    screens/
-    theme/
-    widgets/
-  firebase_options.dart
-  main.dart
-test/
-web/
-apk/
+backend/
+  .firebaserc
+  firebase.json
+
+frontend/
+  android/
+  ios/
+  lib/
+    backend/
+      config/
+      data/
+      models/
+      services/
+    frontend/
+      app/
+      controllers/
+      screens/
+      theme/
+      widgets/
+    main.dart
+  test/
+  web/
+  pubspec.yaml
+
+build/
+  app-release.apk
+  web-release.zip
+  run_questify.bat
+  build_questify_apk.bat
+  deploy_web_hosting.bat
+  serve_web.js
+  WEB_LINKS.md
 ```
 
-## Run the project
+## Features
 
-```bash
+- Firebase Authentication with email/password login and registration
+- Cloud Firestore sync for quests, boss battles, rewards, profile progress, and settings
+- Quest CRUD with mission steps, progress states, and validation
+- XP, levels, coins, streaks, reward badges, and boss health tracking
+- Focus timer, progress map, history, notifications, and profile/settings
+- Responsive Flutter UI with light and dark mode
+
+## Run Locally
+
+```cmd
+cd frontend
 flutter pub get
 flutter run
 ```
 
-For web:
+Or run:
 
-```bash
-flutter run -d chrome
+```cmd
+build\run_questify.bat
 ```
 
 ## Build APK
 
-```bash
-flutter build apk --release
+```cmd
+build\build_questify_apk.bat
 ```
 
-APK output:
+The APK is copied to:
 
 ```text
-build/app/outputs/flutter-apk/app-release.apk
+build/app-release.apk
 ```
 
-Shareable APK stored in the repo:
+## Deploy Web
 
-```text
-apk/Questify-v1.0.0.apk
+```cmd
+build\deploy_web_hosting.bat
 ```
 
-## Firebase setup
+Firebase hosting config is stored in `backend/`.
 
-This repository is already connected to Firebase for the current project setup.
+## Test
 
-If you want to connect it to a different Firebase project:
-
-1. Create a Firebase project.
-2. Enable Email/Password in Authentication.
-3. Create a Firestore database.
-4. Run `flutterfire configure`.
-5. Replace `lib/firebase_options.dart`.
-6. Replace `android/app/google-services.json` if needed.
-
-## Firestore structure
-
-```text
-users/{userId}
-  quests/{questId}
-  bossBattles/{bossId}
-  rewards/{rewardId}
+```cmd
+cd frontend
+flutter analyze
+flutter test
 ```
-
-## Live web app
-
-- [https://deadline-defender-a272c.web.app](https://deadline-defender-a272c.web.app)
-- [https://deadline-defender-a272c.firebaseapp.com](https://deadline-defender-a272c.firebaseapp.com)
-
-## Download and use
-
-- If you want to use the app in a browser, open the live web link above.
-- If you want the Android version, download `apk/Questify-v1.0.0.apk`.
-- If you want to edit or rebuild the project, download the full repository and run Flutter locally.

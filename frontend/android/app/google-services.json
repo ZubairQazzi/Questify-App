@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "995530793430",
+    "project_id": "deadline-defender-a272c",
+    "storage_bucket": "deadline-defender-a272c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:995530793430:android:f74e3aec79c7ae3c5e4477",
+        "android_client_info": {
+          "package_name": "com.example.questify_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCBs0SigC2mkSyi9FRLRFzU7o9YCV6Sylo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
