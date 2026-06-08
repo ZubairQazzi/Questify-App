@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../config/firebase_options.dart';
 import '../models/app_snapshot.dart';
 import '../models/app_user.dart';
 import '../models/boss_battle.dart';
+import '../models/focus_timer_state.dart';
 import '../models/quest.dart';
 import '../models/reward_badge.dart';
 import '../models/user_settings.dart';
@@ -30,16 +32,20 @@ class FirebaseRepository implements QuestifyRepository {
   @override
   Future<AppSnapshot?> restoreSession() async {
     await _ensureInitialized();
-    final currentUser = _auth!.currentUser;
-    if (currentUser == null) {
-      return null;
-    }
+    try {
+      final currentUser = _auth!.currentUser;
+      if (currentUser == null) {
+        return null;
+      }
 
-    return _loadSnapshot(
-      currentUser.uid,
-      fallbackName: currentUser.displayName ?? 'Student',
-      fallbackEmail: currentUser.email ?? '',
-    );
+      return _loadSnapshot(
+        currentUser.uid,
+        fallbackName: currentUser.displayName ?? 'Student',
+        fallbackEmail: currentUser.email ?? '',
+      );
+    } on FirebaseException catch (error) {
+      throw BackendException(_friendlyFirebaseError(error));
+    }
   }
 
   @override
@@ -60,6 +66,8 @@ class FirebaseRepository implements QuestifyRepository {
       );
     } on FirebaseAuthException catch (error) {
       throw BackendException(_friendlyAuthError(error));
+    } on FirebaseException catch (error) {
+      throw BackendException(_friendlyFirebaseError(error));
     }
   }
 
@@ -101,6 +109,8 @@ class FirebaseRepository implements QuestifyRepository {
       return snapshot;
     } on FirebaseAuthException catch (error) {
       throw BackendException(_friendlyAuthError(error));
+    } on FirebaseException catch (error) {
+      throw BackendException(_friendlyFirebaseError(error));
     }
   }
 
@@ -118,35 +128,50 @@ class FirebaseRepository implements QuestifyRepository {
   Future<void> persistSnapshot(AppSnapshot snapshot) async {
     await _ensureInitialized();
 
-    final userRef = _firestore!.collection('users').doc(snapshot.user.id);
-    final batch = _firestore!.batch();
+    try {
+      final userRef = _firestore!.collection('users').doc(snapshot.user.id);
+      final batch = _firestore!.batch();
 
-    batch.set(userRef, <String, dynamic>{
-      ...snapshot.user.toMap(),
-      'settings': snapshot.settings.toMap(),
-    }, SetOptions(merge: true));
+      batch.set(userRef, <String, dynamic>{
+        ...snapshot.user.toMap(),
+        'settings': snapshot.settings.toMap(),
+      }, SetOptions(merge: true));
 
-    await _syncCollection(
-      batch: batch,
-      collection: userRef.collection('quests'),
-      documents: {for (final quest in snapshot.quests) quest.id: quest.toMap()},
-    );
-    await _syncCollection(
-      batch: batch,
-      collection: userRef.collection('bossBattles'),
-      documents: {
-        for (final boss in snapshot.bossBattles) boss.id: boss.toMap(),
-      },
-    );
-    await _syncCollection(
-      batch: batch,
-      collection: userRef.collection('rewards'),
-      documents: {
-        for (final reward in snapshot.rewards) reward.id: reward.toMap(),
-      },
-    );
+      await _syncCollection(
+        batch: batch,
+        collection: userRef.collection('quests'),
+        documents: {
+          for (final quest in snapshot.quests) quest.id: quest.toMap(),
+        },
+      );
+      await _syncCollection(
+        batch: batch,
+        collection: userRef.collection('bossBattles'),
+        documents: {
+          for (final boss in snapshot.bossBattles) boss.id: boss.toMap(),
+        },
+      );
+      await _syncCollection(
+        batch: batch,
+        collection: userRef.collection('rewards'),
+        documents: {
+          for (final reward in snapshot.rewards) reward.id: reward.toMap(),
+        },
+      );
+      await _syncCollection(
+        batch: batch,
+        collection: userRef.collection('timers'),
+        documents: snapshot.focusTimer.isActive
+            ? <String, Map<String, dynamic>>{
+                snapshot.focusTimer.id: snapshot.focusTimer.toMap(),
+              }
+            : <String, Map<String, dynamic>>{},
+      );
 
-    await batch.commit();
+      await batch.commit();
+    } on FirebaseException catch (error) {
+      throw BackendException(_friendlyFirebaseError(error));
+    }
   }
 
   @override
@@ -173,6 +198,9 @@ class FirebaseRepository implements QuestifyRepository {
     await Firebase.initializeApp(options: options);
     _auth ??= FirebaseAuth.instance;
     _firestore ??= FirebaseFirestore.instance;
+    if (kIsWeb) {
+      await _auth!.setPersistence(Persistence.LOCAL);
+    }
     _initialized = true;
   }
 
@@ -187,15 +215,14 @@ class FirebaseRepository implements QuestifyRepository {
       userRef.collection('quests').get(),
       userRef.collection('bossBattles').get(),
       userRef.collection('rewards').get(),
+      userRef.collection('timers').get(),
     ]);
 
     final userDoc = futures[0] as DocumentSnapshot<Map<String, dynamic>>;
-    final questDocs =
-        futures[1] as QuerySnapshot<Map<String, dynamic>>;
-    final bossDocs =
-        futures[2] as QuerySnapshot<Map<String, dynamic>>;
-    final rewardDocs =
-        futures[3] as QuerySnapshot<Map<String, dynamic>>;
+    final questDocs = futures[1] as QuerySnapshot<Map<String, dynamic>>;
+    final bossDocs = futures[2] as QuerySnapshot<Map<String, dynamic>>;
+    final rewardDocs = futures[3] as QuerySnapshot<Map<String, dynamic>>;
+    final timerDocs = futures[4] as QuerySnapshot<Map<String, dynamic>>;
 
     if (!userDoc.exists) {
       final initialUser = AppUser.initial(
@@ -213,6 +240,7 @@ class FirebaseRepository implements QuestifyRepository {
           quests: const <Quest>[],
           bossBattles: const <BossBattle>[],
         ),
+        focusTimer: FocusTimerState.inactive(),
       );
       await persistSnapshot(snapshot);
       return snapshot;
@@ -246,6 +274,16 @@ class FirebaseRepository implements QuestifyRepository {
           }),
         )
         .toList();
+    FocusTimerState focusTimer = FocusTimerState.inactive();
+    for (final doc in timerDocs.docs) {
+      if (doc.id == FocusTimerState.activeTimerId) {
+        focusTimer = FocusTimerState.fromMap(<String, dynamic>{
+          ...doc.data(),
+          'id': doc.id,
+        });
+        break;
+      }
+    }
 
     return AppSnapshot(
       user: AppUser.fromMap(<String, dynamic>{
@@ -258,6 +296,7 @@ class FirebaseRepository implements QuestifyRepository {
       quests: quests,
       bossBattles: bossBattles,
       rewards: rewards,
+      focusTimer: focusTimer,
     );
   }
 
@@ -294,6 +333,8 @@ class FirebaseRepository implements QuestifyRepository {
         return 'The email or password is incorrect.';
       case 'email-already-in-use':
         return 'That email is already registered.';
+      case 'operation-not-allowed':
+        return 'Email/password sign-in is not enabled for this Firebase project.';
       case 'weak-password':
         return 'Use a stronger password with at least 6 characters.';
       case 'network-request-failed':
@@ -302,6 +343,26 @@ class FirebaseRepository implements QuestifyRepository {
         return 'Too many attempts. Please wait a moment and try again.';
       default:
         return error.message ?? 'Firebase authentication failed.';
+    }
+  }
+
+  String _friendlyFirebaseError(FirebaseException error) {
+    switch (error.code) {
+      case 'permission-denied':
+        return 'Firebase denied this Questify save. Check Firestore rules for your signed-in user.';
+      case 'unauthenticated':
+        return 'Your Firebase session expired. Please log in again.';
+      case 'unavailable':
+      case 'deadline-exceeded':
+        return 'Firebase is temporarily unavailable. Check your connection and try again.';
+      case 'resource-exhausted':
+        return 'Firebase quota was reached. Try again later.';
+      case 'not-found':
+        return 'Questify Firebase data was not found for this account.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+      default:
+        return error.message ?? 'Firebase sync failed.';
     }
   }
 }

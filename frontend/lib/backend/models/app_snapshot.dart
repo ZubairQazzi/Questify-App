@@ -1,23 +1,26 @@
 import 'app_user.dart';
 import 'boss_battle.dart';
+import 'focus_timer_state.dart';
 import 'quest.dart';
 import 'reward_badge.dart';
 import 'user_settings.dart';
 
 class AppSnapshot {
-  const AppSnapshot({
+  AppSnapshot({
     required this.user,
     required this.settings,
     required this.quests,
     required this.bossBattles,
     required this.rewards,
-  });
+    FocusTimerState? focusTimer,
+  }) : focusTimer = focusTimer ?? FocusTimerState.inactive();
 
   final AppUser user;
   final UserSettings settings;
   final List<Quest> quests;
   final List<BossBattle> bossBattles;
   final List<RewardBadge> rewards;
+  final FocusTimerState focusTimer;
 
   AppSnapshot copyWith({
     AppUser? user,
@@ -25,6 +28,7 @@ class AppSnapshot {
     List<Quest>? quests,
     List<BossBattle>? bossBattles,
     List<RewardBadge>? rewards,
+    FocusTimerState? focusTimer,
   }) {
     return AppSnapshot(
       user: user ?? this.user,
@@ -32,6 +36,7 @@ class AppSnapshot {
       quests: quests ?? this.quests,
       bossBattles: bossBattles ?? this.bossBattles,
       rewards: rewards ?? this.rewards,
+      focusTimer: focusTimer ?? this.focusTimer,
     );
   }
 
@@ -42,6 +47,7 @@ class AppSnapshot {
       'quests': quests.map((quest) => quest.toMap()).toList(),
       'bossBattles': bossBattles.map((battle) => battle.toMap()).toList(),
       'rewards': rewards.map((reward) => reward.toMap()).toList(),
+      'focusTimer': focusTimer.toMap(),
     };
   }
 
@@ -67,6 +73,11 @@ class AppSnapshot {
       quests: questMaps,
       bossBattles: bossMaps,
       rewards: rewardMaps,
+      focusTimer: map['focusTimer'] is Map
+          ? FocusTimerState.fromMap(
+              Map<String, dynamic>.from(map['focusTimer'] as Map),
+            )
+          : FocusTimerState.inactive(),
     );
   }
 }

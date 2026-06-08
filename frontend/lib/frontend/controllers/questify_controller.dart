@@ -9,6 +9,7 @@ import '../../backend/data/questify_repository.dart';
 import '../../backend/models/app_snapshot.dart';
 import '../../backend/models/app_user.dart';
 import '../../backend/models/boss_battle.dart';
+import '../../backend/models/focus_timer_state.dart';
 import '../../backend/models/mission_step.dart';
 import '../../backend/models/quest.dart';
 import '../../backend/models/reward_badge.dart';
@@ -38,9 +39,7 @@ class QuestifyController extends ChangeNotifier {
   bool _isAuthenticating = false;
   bool _isSaving = false;
   bool _firebaseConfigured = false;
-  bool _persistInFlight = false;
-  bool _persistQueued = false;
-  bool _persistQueuedNeedsNotificationSync = false;
+  String? _startupError;
   AppUser? _user;
   UserSettings _settings = UserSettings.defaults();
   List<Quest> _quests = <Quest>[];
@@ -60,6 +59,7 @@ class QuestifyController extends ChangeNotifier {
   bool get isSaving => _isSaving;
   bool get isSignedIn => _user != null;
   bool get firebaseConfigured => _firebaseConfigured;
+  String? get startupError => _startupError;
   AppUser? get user => _user;
   UserSettings get settings => _settings;
   List<Quest> get quests => List<Quest>.unmodifiable(_quests);
@@ -178,10 +178,11 @@ class QuestifyController extends ChangeNotifier {
       .where((battle) => battle.status == BossBattleStatus.defeated)
       .length;
 
-  List<Quest> get todayQuests => activeQuests
-      .where((quest) => _isSameDay(quest.deadline, _currentTime))
-      .toList()
-    ..sort(_questSort);
+  List<Quest> get todayQuests =>
+      activeQuests
+          .where((quest) => _isSameDay(quest.deadline, _currentTime))
+          .toList()
+        ..sort(_questSort);
 
   Future<void> bootstrap() async {
     _currentTime = DateTime.now();
@@ -207,8 +208,15 @@ class QuestifyController extends ChangeNotifier {
             quests: _quests,
           );
         }
-      } on BackendException {
-        // Leave the user at the auth screen if session restore fails.
+        _startupError = null;
+      } on BackendException catch (error, stackTrace) {
+        _startupError = error.message;
+        debugPrint('Questify session restore failed: ${error.message}');
+        debugPrintStack(stackTrace: stackTrace);
+      } catch (error, stackTrace) {
+        _startupError = 'Firebase session restore failed. Please log in again.';
+        debugPrint('Questify session restore failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
       }
     }
 
@@ -223,17 +231,18 @@ class QuestifyController extends ChangeNotifier {
     await prefs.setBool(_onboardingCompleteKey, true);
   }
 
-  Future<void> setThemePreference(ThemePreference preference) async {
+  Future<String?> setThemePreference(ThemePreference preference) async {
+    final previousSnapshot = _currentSnapshot();
     _settings = _settings.copyWith(themePreference: preference);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themePreferenceKey, preference.label);
     notifyListeners();
 
     if (_user == null) {
-      return;
+      return null;
     }
 
-    await _persistAll();
+    return _persistCurrentState(previousSnapshot: previousSnapshot);
   }
 
   Future<String?> signIn({
@@ -250,6 +259,7 @@ class QuestifyController extends ChangeNotifier {
       );
 
       _applySnapshot(snapshot);
+      _startupError = null;
       notifyListeners();
       unawaited(_runPostAuthenticationSync());
 
@@ -278,6 +288,7 @@ class QuestifyController extends ChangeNotifier {
       );
 
       _applySnapshot(snapshot);
+      _startupError = null;
       notifyListeners();
       unawaited(_runPostAuthenticationSync());
 
@@ -349,6 +360,7 @@ class QuestifyController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final previousSnapshot = _currentSnapshot();
       _currentTime = DateTime.now();
       final normalizedQuest = _normalizeQuest(quest, _currentTime);
       final existingIndex = _quests.indexWhere(
@@ -392,8 +404,7 @@ class QuestifyController extends ChangeNotifier {
       }
 
       _reconcileCollections();
-      _schedulePersist();
-      return null;
+      return _persistCurrentState(previousSnapshot: previousSnapshot);
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -405,6 +416,7 @@ class QuestifyController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final previousSnapshot = _currentSnapshot();
       _currentTime = DateTime.now();
       _quests = _quests.where((quest) => quest.id != questId).toList();
       _bossBattles = _bossBattles
@@ -412,12 +424,11 @@ class QuestifyController extends ChangeNotifier {
           .toList();
 
       if (_activeFocusQuestId == questId) {
-        resetFocusTimer();
+        _clearFocusTimer(notify: false);
       }
 
       _reconcileCollections();
-      _schedulePersist();
-      return null;
+      return _persistCurrentState(previousSnapshot: previousSnapshot);
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -428,6 +439,7 @@ class QuestifyController extends ChangeNotifier {
     required String questId,
     required String reflection,
   }) async {
+    final previousSnapshot = _currentSnapshot();
     _currentTime = DateTime.now();
     final quest = _quests.where((item) => item.id == questId).firstOrNull;
 
@@ -443,7 +455,12 @@ class QuestifyController extends ChangeNotifier {
       _markQuestAsMissed(questId);
       _reconcileCollections();
       notifyListeners();
-      _schedulePersist();
+      final syncError = await _persistCurrentState(
+        previousSnapshot: previousSnapshot,
+      );
+      if (syncError != null) {
+        return syncError;
+      }
       return 'Deadline passed. This quest is now marked missed.';
     }
 
@@ -453,7 +470,7 @@ class QuestifyController extends ChangeNotifier {
     }
 
     if (_activeFocusQuestId == questId) {
-      resetFocusTimer();
+      _clearFocusTimer(notify: false);
     }
 
     final updatedQuest = quest.copyWith(
@@ -492,7 +509,12 @@ class QuestifyController extends ChangeNotifier {
 
     _reconcileCollections();
     notifyListeners();
-    _schedulePersist();
+    final syncError = await _persistCurrentState(
+      previousSnapshot: previousSnapshot,
+    );
+    if (syncError != null) {
+      return syncError;
+    }
 
     return 'Quest complete. +${quest.xpReward} XP and +${quest.coinReward} coins earned.';
   }
@@ -502,6 +524,7 @@ class QuestifyController extends ChangeNotifier {
     required String missionId,
     required bool completed,
   }) async {
+    final previousSnapshot = _currentSnapshot();
     _currentTime = DateTime.now();
     final battle = _bossBattles
         .where((item) => item.id == bossBattleId)
@@ -564,8 +587,9 @@ class QuestifyController extends ChangeNotifier {
         steps: updatedMissions,
         status: status,
         completedAt: !deadlinePassed && allCompleted ? _currentTime : null,
-        reflection:
-            !deadlinePassed && allCompleted ? 'Difficult' : quest.reflection,
+        reflection: !deadlinePassed && allCompleted
+            ? 'Difficult'
+            : quest.reflection,
       );
     }).toList();
 
@@ -573,7 +597,10 @@ class QuestifyController extends ChangeNotifier {
         .where((quest) => quest.id == battle.linkedQuestId)
         .firstOrNull;
 
-    if (!deadlinePassed && allCompleted && linkedQuest != null && !questWasCompleted) {
+    if (!deadlinePassed &&
+        allCompleted &&
+        linkedQuest != null &&
+        !questWasCompleted) {
       _user = _user?.copyWith(
         xp: (_user?.xp ?? 0) + linkedQuest.xpReward,
         coins:
@@ -586,7 +613,12 @@ class QuestifyController extends ChangeNotifier {
 
     _reconcileCollections();
     notifyListeners();
-    _schedulePersist();
+    final syncError = await _persistCurrentState(
+      previousSnapshot: previousSnapshot,
+    );
+    if (syncError != null) {
+      return syncError;
+    }
 
     if (allCompleted) {
       if (deadlinePassed) {
@@ -607,6 +639,7 @@ class QuestifyController extends ChangeNotifier {
     required String stepId,
     required bool completed,
   }) async {
+    final previousSnapshot = _currentSnapshot();
     _currentTime = DateTime.now();
     final quest = _quests.where((item) => item.id == questId).firstOrNull;
 
@@ -676,7 +709,7 @@ class QuestifyController extends ChangeNotifier {
 
     if (!deadlinePassed && allCompleted) {
       if (_activeFocusQuestId == questId) {
-        resetFocusTimer();
+        _clearFocusTimer(notify: false);
       }
 
       _user = _user?.copyWith(
@@ -691,7 +724,12 @@ class QuestifyController extends ChangeNotifier {
 
     _reconcileCollections();
     notifyListeners();
-    _schedulePersist();
+    final syncError = await _persistCurrentState(
+      previousSnapshot: previousSnapshot,
+    );
+    if (syncError != null) {
+      return syncError;
+    }
 
     if (allCompleted) {
       if (deadlinePassed) {
@@ -710,30 +748,33 @@ class QuestifyController extends ChangeNotifier {
   }
 
   Future<String?> updateSettings(UserSettings updatedSettings) async {
+    final previousSnapshot = _currentSnapshot();
     _settings = updatedSettings;
     notifyListeners();
-    _schedulePersist();
-    return null;
+    return _persistCurrentState(previousSnapshot: previousSnapshot);
   }
 
-  Future<void> startFocusTimer(String questId) async {
+  Future<String?> startFocusTimer(String questId) async {
+    final previousSnapshot = _currentSnapshot();
     _currentTime = DateTime.now();
     final quest = _quests.where((item) => item.id == questId).firstOrNull;
 
     if (quest == null) {
-      return;
+      return 'Quest not found.';
     }
 
     if (_hasPassedDeadline(quest.deadline, _currentTime)) {
       _markQuestAsMissed(questId);
       _reconcileCollections();
       notifyListeners();
-      _schedulePersist();
-      return;
+      final syncError = await _persistCurrentState(
+        previousSnapshot: previousSnapshot,
+      );
+      return syncError ?? 'Deadline passed. This quest is now marked missed.';
     }
 
     if (_isFocusTimerRunning) {
-      return;
+      return null;
     }
 
     final isResumingSameQuest =
@@ -760,49 +801,46 @@ class QuestifyController extends ChangeNotifier {
 
     notifyListeners();
 
-    _focusTimer?.cancel();
+    _startFocusTicker(questId);
 
-    _focusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isFocusTimerRunning) {
-        timer.cancel();
-        return;
-      }
-
-      if (_focusRemainingSeconds <= 1) {
-        timer.cancel();
-        _focusTimer = null;
-        _isFocusTimerRunning = false;
-        _focusRemainingSeconds = 0;
-        notifyListeners();
-
-        unawaited(_completeFocusSession(questId));
-        return;
-      }
-
-      _focusRemainingSeconds -= 1;
-      notifyListeners();
-    });
-
-    unawaited(_persistAll(rescheduleNotifications: false));
+    return _persistCurrentState(
+      rescheduleNotifications: false,
+      previousSnapshot: previousSnapshot,
+    );
   }
 
-  void pauseFocusTimer() {
+  Future<String?> pauseFocusTimer() async {
+    final previousSnapshot = _currentSnapshot();
+    if (_activeFocusQuestId == null || !_isFocusTimerRunning) {
+      return null;
+    }
+
     _focusTimer?.cancel();
     _focusTimer = null;
     _isFocusTimerRunning = false;
 
     notifyListeners();
+
+    return _persistCurrentState(
+      rescheduleNotifications: false,
+      previousSnapshot: previousSnapshot,
+    );
   }
 
-  void resetFocusTimer() {
-    _focusTimer?.cancel();
-    _focusTimer = null;
-    _isFocusTimerRunning = false;
-    _activeFocusQuestId = null;
-    _focusRemainingSeconds = 0;
-    _focusTotalSeconds = 0;
+  Future<String?> resetFocusTimer() async {
+    final previousSnapshot = _currentSnapshot();
+    if (_activeFocusQuestId == null &&
+        _focusRemainingSeconds == 0 &&
+        _focusTotalSeconds == 0) {
+      return null;
+    }
 
-    notifyListeners();
+    _clearFocusTimer();
+
+    return _persistCurrentState(
+      rescheduleNotifications: false,
+      previousSnapshot: previousSnapshot,
+    );
   }
 
   String formatFocusTime(int seconds) {
@@ -869,6 +907,108 @@ class QuestifyController extends ChangeNotifier {
     _bossBattles = [...snapshot.bossBattles];
     _rewards = [...snapshot.rewards];
     _reconcileCollections(rewardSeed: snapshot.rewards);
+    _applyFocusTimerState(snapshot.focusTimer);
+  }
+
+  AppSnapshot? _currentSnapshot() {
+    final user = _user;
+    if (user == null) {
+      return null;
+    }
+
+    return AppSnapshot(
+      user: user,
+      settings: _settings,
+      quests: [..._quests],
+      bossBattles: [..._bossBattles],
+      rewards: [..._rewards],
+      focusTimer: _focusTimerState(),
+    );
+  }
+
+  FocusTimerState _focusTimerState() {
+    if (_activeFocusQuestId == null ||
+        _focusRemainingSeconds <= 0 ||
+        _focusTotalSeconds <= 0) {
+      return FocusTimerState.inactive();
+    }
+
+    return FocusTimerState(
+      id: FocusTimerState.activeTimerId,
+      questId: _activeFocusQuestId,
+      remainingSeconds: _focusRemainingSeconds,
+      totalSeconds: _focusTotalSeconds,
+      isRunning: _isFocusTimerRunning,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  void _applyFocusTimerState(FocusTimerState timerState) {
+    _focusTimer?.cancel();
+    _focusTimer = null;
+
+    if (!timerState.isActive) {
+      _clearFocusTimer(notify: false);
+      return;
+    }
+
+    var remainingSeconds = timerState.remainingSeconds;
+    if (timerState.isRunning) {
+      final elapsed = DateTime.now().difference(timerState.updatedAt).inSeconds;
+      remainingSeconds -= elapsed;
+    }
+
+    if (remainingSeconds <= 0 || timerState.questId == null) {
+      _clearFocusTimer(notify: false);
+      return;
+    }
+
+    _activeFocusQuestId = timerState.questId;
+    _focusRemainingSeconds = remainingSeconds;
+    _focusTotalSeconds = timerState.totalSeconds;
+    _isFocusTimerRunning = timerState.isRunning;
+
+    if (_isFocusTimerRunning && _activeFocusQuestId != null) {
+      _startFocusTicker(_activeFocusQuestId!);
+    }
+  }
+
+  void _startFocusTicker(String questId) {
+    _focusTimer?.cancel();
+
+    _focusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!_isFocusTimerRunning) {
+        timer.cancel();
+        return;
+      }
+
+      if (_focusRemainingSeconds <= 1) {
+        timer.cancel();
+        _focusTimer = null;
+        _isFocusTimerRunning = false;
+        _focusRemainingSeconds = 0;
+        notifyListeners();
+
+        unawaited(_completeFocusSession(questId));
+        return;
+      }
+
+      _focusRemainingSeconds -= 1;
+      notifyListeners();
+    });
+  }
+
+  void _clearFocusTimer({bool notify = true}) {
+    _focusTimer?.cancel();
+    _focusTimer = null;
+    _isFocusTimerRunning = false;
+    _activeFocusQuestId = null;
+    _focusRemainingSeconds = 0;
+    _focusTotalSeconds = 0;
+
+    if (notify) {
+      notifyListeners();
+    }
   }
 
   Future<void> _persistAll({bool rescheduleNotifications = true}) async {
@@ -887,6 +1027,7 @@ class QuestifyController extends ChangeNotifier {
         quests: _quests,
         bossBattles: _bossBattles,
         rewards: _rewards,
+        focusTimer: _focusTimerState(),
       ),
     );
 
@@ -915,49 +1056,42 @@ class QuestifyController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _schedulePersist({bool rescheduleNotifications = true}) {
+  Future<String?> _persistCurrentState({
+    bool rescheduleNotifications = true,
+    AppSnapshot? previousSnapshot,
+  }) async {
     if (_user == null) {
-      return;
+      return null;
     }
 
-    _persistQueued = true;
-    _persistQueuedNeedsNotificationSync =
-        _persistQueuedNeedsNotificationSync || rescheduleNotifications;
-
-    if (_persistInFlight) {
-      return;
-    }
-
-    unawaited(_drainPersistQueue());
-  }
-
-  Future<void> _drainPersistQueue() async {
-    _persistInFlight = true;
-
-    while (_persistQueued) {
-      final shouldReschedule = _persistQueuedNeedsNotificationSync;
-      _persistQueued = false;
-      _persistQueuedNeedsNotificationSync = false;
-
-      try {
-        await _persistAll(rescheduleNotifications: shouldReschedule);
-      } on BackendException catch (error, stackTrace) {
-        debugPrint('Questify background sync failed: ${error.message}');
-        debugPrintStack(stackTrace: stackTrace);
-      } catch (error, stackTrace) {
-        debugPrint('Questify background sync failed: $error');
-        debugPrintStack(stackTrace: stackTrace);
+    try {
+      await _persistAll(rescheduleNotifications: rescheduleNotifications);
+      return null;
+    } on BackendException catch (error, stackTrace) {
+      debugPrint('Questify sync failed: ${error.message}');
+      debugPrintStack(stackTrace: stackTrace);
+      if (previousSnapshot != null) {
+        _applySnapshot(previousSnapshot);
+        notifyListeners();
       }
+      return error.message;
+    } catch (error, stackTrace) {
+      debugPrint('Questify sync failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (previousSnapshot != null) {
+        _applySnapshot(previousSnapshot);
+        notifyListeners();
+      }
+      return 'Firebase sync failed. Check your connection and try again.';
     }
-
-    _persistInFlight = false;
   }
 
   Future<void> _completeFocusSession(String questId) async {
+    final previousSnapshot = _currentSnapshot();
     final quest = _quests.where((item) => item.id == questId).firstOrNull;
 
     if (quest == null) {
-      resetFocusTimer();
+      _clearFocusTimer();
       return;
     }
 
@@ -975,8 +1109,14 @@ class QuestifyController extends ChangeNotifier {
     }).toList();
 
     await _notificationService.showFocusComplete(quest.title);
-    resetFocusTimer();
-    await _persistAll(rescheduleNotifications: false);
+    _clearFocusTimer();
+    final syncError = await _persistCurrentState(
+      rescheduleNotifications: false,
+      previousSnapshot: previousSnapshot,
+    );
+    if (syncError != null) {
+      debugPrint('Questify focus session save failed: $syncError');
+    }
   }
 
   Future<void> _runPostAuthenticationSync() async {
@@ -1090,12 +1230,12 @@ class QuestifyController extends ChangeNotifier {
     Quest? linkedQuest,
     DateTime now,
   ) {
-    final normalizedMissions =
-        linkedQuest?.steps.isNotEmpty == true
+    final normalizedMissions = linkedQuest?.steps.isNotEmpty == true
         ? linkedQuest!.steps
         : battle.missions;
     final deadlinePassed = _hasPassedDeadline(battle.deadline, now);
-    final allMissionsComplete = normalizedMissions.isNotEmpty &&
+    final allMissionsComplete =
+        normalizedMissions.isNotEmpty &&
         normalizedMissions.every((mission) => mission.isCompleted);
 
     final status = linkedQuest?.status == QuestStatus.completed
@@ -1133,10 +1273,7 @@ class QuestifyController extends ChangeNotifier {
       if (quest.id != questId) {
         return quest;
       }
-      return quest.copyWith(
-        status: QuestStatus.overdue,
-        completedAt: null,
-      );
+      return quest.copyWith(status: QuestStatus.overdue, completedAt: null);
     }).toList();
 
     _bossBattles = _bossBattles.map((battle) {

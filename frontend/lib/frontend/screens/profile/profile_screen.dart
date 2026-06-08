@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../backend/models/user_settings.dart';
 import '../../controllers/questify_controller.dart';
 import '../../theme/questify_theme.dart';
+import '../../widgets/questify_feedback.dart';
 import '../../widgets/questify_top_dialog.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -142,10 +143,13 @@ class ProfileScreen extends StatelessWidget {
               trailing: Switch(
                 value:
                     controller.settings.themePreference == ThemePreference.dark,
-                onChanged: (value) {
-                  controller.setThemePreference(
+                onChanged: (value) async {
+                  final message = await controller.setThemePreference(
                     value ? ThemePreference.dark : ThemePreference.light,
                   );
+                  if (context.mounted && message != null) {
+                    _showSettingsError(context, message);
+                  }
                 },
               ),
             ),
@@ -158,10 +162,13 @@ class ProfileScreen extends StatelessWidget {
               ),
               trailing: Switch(
                 value: controller.settings.notificationsEnabled,
-                onChanged: (value) {
-                  controller.updateSettings(
+                onChanged: (value) async {
+                  final message = await controller.updateSettings(
                     controller.settings.copyWith(notificationsEnabled: value),
                   );
+                  if (context.mounted && message != null) {
+                    _showSettingsError(context, message);
+                  }
                 },
               ),
               onTap: () => _pickReminderTime(context, controller),
@@ -232,12 +239,15 @@ class ProfileScreen extends StatelessWidget {
     if (selected == null) {
       return;
     }
-    await controller.updateSettings(
+    final message = await controller.updateSettings(
       controller.settings.copyWith(
         reminderHour: selected.hour,
         reminderMinute: selected.minute,
       ),
     );
+    if (context.mounted && message != null) {
+      _showSettingsError(context, message);
+    }
   }
 
   Future<void> _pickDailyGoal(
@@ -294,9 +304,12 @@ class ProfileScreen extends StatelessWidget {
     if (selected == null) {
       return;
     }
-    await controller.updateSettings(
+    final message = await controller.updateSettings(
       controller.settings.copyWith(dailyGoalQuests: selected.round()),
     );
+    if (context.mounted && message != null) {
+      _showSettingsError(context, message);
+    }
   }
 
   Future<void> _pickFocusDuration(
@@ -354,9 +367,16 @@ class ProfileScreen extends StatelessWidget {
       return;
     }
 
-    await controller.updateSettings(
+    final message = await controller.updateSettings(
       controller.settings.copyWith(focusDurationMinutes: selected.round()),
     );
+    if (context.mounted && message != null) {
+      _showSettingsError(context, message);
+    }
+  }
+
+  void _showSettingsError(BuildContext context, String message) {
+    showQuestifyFeedback(context, message, tone: QuestifyFeedbackTone.error);
   }
 }
 

@@ -218,10 +218,15 @@ class QuestDetailScreen extends StatelessWidget {
                     children: <Widget>[
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: quest.isCompleted ||
+                          onPressed:
+                              quest.isCompleted ||
                                   quest.status == QuestStatus.overdue
                               ? null
-                              : () => controller.startFocusTimer(quest.id),
+                              : () => _startFocusTimer(
+                                  context,
+                                  controller,
+                                  quest,
+                                ),
                           icon: const Icon(Icons.play_arrow_rounded),
                           label: const Text('START'),
                         ),
@@ -230,7 +235,7 @@ class QuestDetailScreen extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: isFocusActive
-                              ? controller.pauseFocusTimer
+                              ? () => _pauseFocusTimer(context, controller)
                               : null,
                           icon: const Icon(Icons.pause_rounded),
                           label: const Text('PAUSE'),
@@ -240,7 +245,7 @@ class QuestDetailScreen extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: isFocusActive
-                              ? controller.resetFocusTimer
+                              ? () => _resetFocusTimer(context, controller)
                               : null,
                           icon: const Icon(Icons.restart_alt_rounded),
                           label: const Text('RESET'),
@@ -297,10 +302,12 @@ class QuestDetailScreen extends StatelessWidget {
                         child: _MissionTile(
                           title: step.title,
                           completed: step.isCompleted,
-                          disabled: quest.isCompleted ||
+                          disabled:
+                              quest.isCompleted ||
                               quest.status == QuestStatus.overdue,
-                          onTap: quest.isCompleted
-                                  || quest.status == QuestStatus.overdue
+                          onTap:
+                              quest.isCompleted ||
+                                  quest.status == QuestStatus.overdue
                               ? null
                               : () async {
                                   final message = await controller
@@ -329,8 +336,8 @@ class QuestDetailScreen extends StatelessWidget {
             ],
             const SizedBox(height: 20),
             FilledButton.icon(
-              onPressed: quest.isCompleted ||
-                      quest.status == QuestStatus.overdue
+              onPressed:
+                  quest.isCompleted || quest.status == QuestStatus.overdue
                   ? null
                   : () => _completeQuest(context, controller, quest),
               icon: const Icon(Icons.emoji_events_rounded),
@@ -379,6 +386,46 @@ class QuestDetailScreen extends StatelessWidget {
           ? QuestifyFeedbackTone.warning
           : QuestifyFeedbackTone.success,
     );
+  }
+
+  Future<void> _startFocusTimer(
+    BuildContext context,
+    QuestifyController controller,
+    Quest quest,
+  ) async {
+    final message = await controller.startFocusTimer(quest.id);
+    if (!context.mounted || message == null) {
+      return;
+    }
+    showQuestifyFeedback(
+      context,
+      message,
+      tone: message.contains('Deadline')
+          ? QuestifyFeedbackTone.warning
+          : QuestifyFeedbackTone.error,
+    );
+  }
+
+  Future<void> _pauseFocusTimer(
+    BuildContext context,
+    QuestifyController controller,
+  ) async {
+    final message = await controller.pauseFocusTimer();
+    if (!context.mounted || message == null) {
+      return;
+    }
+    showQuestifyFeedback(context, message, tone: QuestifyFeedbackTone.error);
+  }
+
+  Future<void> _resetFocusTimer(
+    BuildContext context,
+    QuestifyController controller,
+  ) async {
+    final message = await controller.resetFocusTimer();
+    if (!context.mounted || message == null) {
+      return;
+    }
+    showQuestifyFeedback(context, message, tone: QuestifyFeedbackTone.error);
   }
 
   String _defaultReflectionFor(Quest quest) {
@@ -434,11 +481,7 @@ class QuestDetailScreen extends StatelessWidget {
     }
     final message = await controller.deleteQuest(quest.id);
     if (context.mounted && message != null) {
-      showQuestifyFeedback(
-        context,
-        message,
-        tone: QuestifyFeedbackTone.error,
-      );
+      showQuestifyFeedback(context, message, tone: QuestifyFeedbackTone.error);
     }
     return message == null;
   }

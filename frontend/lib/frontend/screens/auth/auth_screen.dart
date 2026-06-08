@@ -171,19 +171,24 @@ class _AuthScreenState extends State<AuthScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   Icon(
-                                    controller.firebaseConfigured
+                                    controller.startupError != null
+                                        ? Icons.warning_amber_rounded
+                                        : controller.firebaseConfigured
                                         ? Icons.verified_rounded
                                         : Icons.cloud_off_rounded,
-                                    color: controller.firebaseConfigured
+                                    color: controller.startupError != null
+                                        ? QuestifyTheme.gold
+                                        : controller.firebaseConfigured
                                         ? QuestifyTheme.violetGlow
                                         : scheme.error,
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      controller.firebaseConfigured
-                                          ? 'Firebase is ready. Use your email and password to log in or register.'
-                                          : 'Firebase setup is still missing on this platform.',
+                                      controller.startupError ??
+                                          (controller.firebaseConfigured
+                                              ? 'Firebase is ready. Use your email and password to log in or register.'
+                                              : 'Firebase setup is still missing on this platform.'),
                                       style: theme.textTheme.bodyMedium,
                                     ),
                                   ),
@@ -256,14 +261,12 @@ class _AuthScreenState extends State<AuthScreen>
                                       Align(
                                         alignment: Alignment.centerRight,
                                         child: TextButton(
-                                          onPressed: controller
-                                                      .firebaseConfigured &&
+                                          onPressed:
+                                              controller.firebaseConfigured &&
                                                   !controller.isAuthenticating
                                               ? _showForgotPasswordDialog
                                               : null,
-                                          child: const Text(
-                                            'Forgot password?',
-                                          ),
+                                          child: const Text('Forgot password?'),
                                         ),
                                       ),
                                     ],
@@ -428,11 +431,7 @@ class _AuthScreenState extends State<AuthScreen>
     String message, {
     QuestifyFeedbackTone tone = QuestifyFeedbackTone.error,
   }) {
-    showQuestifyFeedback(
-      context,
-      message,
-      tone: tone,
-    );
+    showQuestifyFeedback(context, message, tone: tone);
   }
 
   Future<void> _showForgotPasswordDialog() async {

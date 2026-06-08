@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function rootProfileMatchesUser(userId) {
+      return !('id' in request.resource.data) || request.resource.data.id == userId;
+    }
+
+    function childDocumentIdMatches(docId) {
+      return !('id' in request.resource.data) || request.resource.data.id == docId;
+    }
+
+    match /users/{userId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && rootProfileMatchesUser(userId);
+
+      match /quests/{questId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(questId);
+      }
+
+      match /tasks/{taskId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(taskId);
+      }
+
+      match /timers/{timerId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(timerId);
+      }
+
+      match /rewards/{rewardId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(rewardId);
+      }
+
+      match /streaks/{streakId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(streakId);
+      }
+
+      match /levels/{levelId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(levelId);
+      }
+
+      match /progress/{progressId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(progressId);
+      }
+
+      match /settings/{settingsId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(settingsId);
+      }
+
+      match /bossBattles/{bossBattleId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && childDocumentIdMatches(bossBattleId);
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
